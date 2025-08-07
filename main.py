@@ -26,6 +26,10 @@ async def home():
     TEMP_DIR.mkdir(exist_ok=True)
     return FileResponse(STATIC_DIR / "index.html")
 
+@app.get("/health")
+async def health():
+    return {"health": "ok"}
+
 def trim_with_ffmpeg(input_path, output_path, start_time, duration):
     command = [
         "ffmpeg",
