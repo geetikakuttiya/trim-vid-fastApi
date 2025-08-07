@@ -2,7 +2,7 @@ FROM python:3.11-slim
 
 # Install ffmpeg
 RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
-RUN pip install uv
+RUN sudo pip install uv
 
 # Set working directory
 WORKDIR /app
