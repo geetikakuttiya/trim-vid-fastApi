@@ -1,0 +1,12 @@
+[project]
+name = "trim-vid-fastapi"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi[standard]>=0.116.1",
+    "python-multipart>=0.0.20",
+    "uuid-utils>=0.11.0",
+    "uvicorn[standard]>=0.35.0",
+]

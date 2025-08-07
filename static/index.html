@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Video Trimmer</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 40px;
+    }
+    .container {
+      max-width: 500px;
+      margin: auto;
+    }
+    button {
+      margin-top: 10px;
+      padding: 10px 20px;
+      font-size: 16px;
+    }
+    .link-item {
+      display: block;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Video Trimmer</h1>
+    <form id="uploadForm">
+      <input type="file" id="video" name="file" accept="video/*" required><br><br>
+      <label for="max_duration">Max duration per part (seconds):</label><br>
+      <input type="number" id="max_duration" name="max_duration" value="60" min="1"><br><br>
+      <button type="submit">Upload & Trim</button>
+    </form>
+
+    <div id="result"></div>
+  </div>
+
+  <script>
+    const form = document.getElementById("uploadForm");
+    const result = document.getElementById("result");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      result.innerHTML = "Processing...<br>";
+
+      const formData = new FormData();
+      formData.append("file", document.getElementById("video").files[0]);
+      formData.append("max_duration", document.getElementById("max_duration").value);
+
+      try {
+        const response = await fetch("/upload_video_stream/", {
+          method: "POST",
+          body: formData
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          result.innerHTML = `<p style="color:red;">Error: ${error.error || response.statusText}</p>`;
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.parts && Array.isArray(data.parts)) {
+          result.innerHTML = "<h3>Download Parts:</h3>";
+          data.parts.forEach(part => {
+            const link = document.createElement("a");
+            link.href = part;
+            link.innerText = `Download ${part.split("/").pop()}`;
+            link.download = "";
+            link.className = "link-item";
+            result.appendChild(link);
+          });
+        } else if (data.error) {
+          result.innerHTML = `<p style="color:red;">${data.error}</p>`;
+        } else {
+          result.innerHTML = "<p style='color:red;'>Unexpected response.</p>";
+        }
+      } catch (err) {
+        result.innerHTML = `<p style="color:red;">Upload failed: ${err.message}</p>`;
+      }
+    });
+  </script>
+</body>
+</html>
