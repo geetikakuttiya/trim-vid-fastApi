@@ -145,3 +145,34 @@ def get_download_urls(movie_id: int):
 
     return {"movie_id": movie_id, "download_urls": download_urls}
 
+
+@app.get("/tv/{tv_id}/downloads")
+def get_download_urls_tv(tv_id: int, season: int = 1, episode: int = 1):
+    url = f"https://dl.vidsrc.vip/tv/{tv_id}/{season}/{episode}"
+    data = {"movieId": str(tv_id), "slider": "100"}
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    try:
+        response = requests.post(url, data=data, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        return {"error": str(e)}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    buttons = soup.find_all("button", onclick=True)
+    url_pattern = re.compile(r"triggerDownload\(this,\s*'([^']+)'")
+    
+    download_urls = []
+    
+    for button in buttons:
+        onclick = button.get("onclick", "")
+        match = url_pattern.search(onclick)
+        if match:
+            extracted_url = match.group(1)
+            if not extracted_url.startswith("/sub"):
+                download_urls.append(extracted_url)
+
+    return {"tv_id": tv_id, "download_urls": download_urls}
