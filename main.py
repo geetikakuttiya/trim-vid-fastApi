@@ -21,7 +21,8 @@ app = FastAPI()
 # middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://moomoviev2.pages.dev/", "https://*.app.github.dev/", "http://localhost:3000"],  # <-- Allows all origins. Change this in production.
+    # allow_origins=["https://moomoviev2.pages.dev/", "http://localhost:3000"],  # <-- Allows all origins. Change this in production.
+    allow_origins=["*"],  # <-- Allows all origins. Change this in production.
     allow_origin_regex=r"https://.*\.app\.github\.dev",
     allow_methods=["*"],  # <-- Allows all methods: GET, POST, etc.
     allow_headers=["*"],  # <-- Allows all headers
