@@ -9,6 +9,12 @@ import subprocess
 from pathlib import Path
 import json
 
+# Movie Download Dependencies
+import requests
+from bs4 import BeautifulSoup
+import re
+# end
+
 app = FastAPI()
 
 # Static and temp folders
@@ -106,3 +112,36 @@ def download_file(filename: str):
 @app.on_event("shutdown")
 def cleanup_temp_dir():
     shutil.rmtree(TEMP_DIR, ignore_errors=True)
+
+
+@app.get("/movie/{movie_id}/downloads")
+def get_download_urls(movie_id: int):
+    url = f"https://dl.vidsrc.vip/movie/{movie_id}"
+    data = {"movieId": str(movie_id), "slider": "100"}
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "Mozilla/5.0"
+    }
+
+    try:
+        response = requests.post(url, data=data, headers=headers, timeout=10)
+        response.raise_for_status()
+    except requests.RequestException as e:
+        return {"error": str(e)}
+
+    soup = BeautifulSoup(response.text, "html.parser")
+    buttons = soup.find_all("button", onclick=True)
+    url_pattern = re.compile(r"triggerDownload\(this,\s*'([^']+)'")
+    
+    download_urls = []
+    
+    for button in buttons:
+        onclick = button.get("onclick", "")
+        match = url_pattern.search(onclick)
+        if match:
+            extracted_url = match.group(1)
+            if not extracted_url.startswith("/sub"):
+                download_urls.append(extracted_url)
+
+    return {"movie_id": movie_id, "download_urls": download_urls}
+
