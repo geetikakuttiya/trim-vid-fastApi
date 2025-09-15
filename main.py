@@ -10,12 +10,22 @@ from pathlib import Path
 import json
 
 # Movie Download Dependencies
+from fastapi.middleware.cors import CORSMiddleware
 import requests
 from bs4 import BeautifulSoup
 import re
 # end
 
 app = FastAPI()
+
+# middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["https://moomoviev2.pages.dev/", "https://*.app.github.dev/", "http://localhost:3000"],  # <-- Allows all origins. Change this in production.
+    allow_origin_regex=r"https://.*\.app\.github\.dev",
+    allow_methods=["*"],  # <-- Allows all methods: GET, POST, etc.
+    allow_headers=["*"],  # <-- Allows all headers
+)
 
 # Static and temp folders
 STATIC_DIR = Path("static")
@@ -137,13 +147,18 @@ def get_download_urls(movie_id: int):
     
     for button in buttons:
         onclick = button.get("onclick", "")
+        text = button.get_text(strip=True).split(" ")[0]
+        # print(button/)
         match = url_pattern.search(onclick)
         if match:
             extracted_url = match.group(1)
             if not extracted_url.startswith("/sub"):
-                download_urls.append(extracted_url)
+                download_urls.append({
+                    "quality": text,
+                    "link": extracted_url
+                })
 
-    return {"movie_id": movie_id, "download_urls": download_urls}
+    return {"id": movie_id, "download_urls": download_urls}
 
 
 @app.get("/tv/{tv_id}/downloads")
@@ -163,6 +178,7 @@ def get_download_urls_tv(tv_id: int, season: int = 1, episode: int = 1):
 
     soup = BeautifulSoup(response.text, "html.parser")
     buttons = soup.find_all("button", onclick=True)
+    text = button.get_text(strip=True).split(" ")[0]
     url_pattern = re.compile(r"triggerDownload\(this,\s*'([^']+)'")
     
     download_urls = []
@@ -173,6 +189,9 @@ def get_download_urls_tv(tv_id: int, season: int = 1, episode: int = 1):
         if match:
             extracted_url = match.group(1)
             if not extracted_url.startswith("/sub"):
-                download_urls.append(extracted_url)
+                download_urls.append({
+                    "quality": text,
+                    "link": extracted_url
+                })
 
-    return {"tv_id": tv_id, "download_urls": download_urls}
+    return {"id": tv_id, "download_urls": download_urls}
