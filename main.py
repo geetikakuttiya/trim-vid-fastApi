@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import requests
 from bs4 import BeautifulSoup
 import re
+import cloudscraper
 # end
 
 app = FastAPI()
@@ -129,15 +130,16 @@ def cleanup_temp_dir():
 def get_download_urls(movie_id: int):
     url = f"https://dl.vidsrc.vip/movie/{movie_id}"
     data = {"movieId": str(movie_id), "slider": "100"}
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0"
-    }
+    
+    # Create a cloudscraper instance (bypasses Cloudflare)
+    scraper = cloudscraper.create_scraper()
 
     try:
-        response = requests.post(url, data=data, headers=headers, timeout=10)
+        response = scraper.post(url, data=data, timeout=10)
         response.raise_for_status()
-    except requests.RequestException as e:
+        print(f"Status: {response.status_code}")
+    except Exception as e:
+        print(f"Error: {e}")
         return {"error": str(e)}
 
     soup = BeautifulSoup(response.text, "html.parser")
@@ -149,7 +151,6 @@ def get_download_urls(movie_id: int):
     for button in buttons:
         onclick = button.get("onclick", "")
         text = button.get_text(strip=True).split(" ")[0]
-        # print(button/)
         match = url_pattern.search(onclick)
         if match:
             extracted_url = match.group(1)
@@ -166,26 +167,25 @@ def get_download_urls(movie_id: int):
 def get_download_urls_tv(tv_id: int, season: int = 1, episode: int = 1):
     url = f"https://dl.vidsrc.vip/tv/{tv_id}/{season}/{episode}"
     data = {"movieId": str(tv_id), "slider": "100"}
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "User-Agent": "Mozilla/5.0"
-    }
+    
+    # Create a cloudscraper instance (bypasses Cloudflare)
+    scraper = cloudscraper.create_scraper()
 
     try:
-        response = requests.post(url, data=data, headers=headers, timeout=10)
+        response = scraper.post(url, data=data, timeout=10)
         response.raise_for_status()
-    except requests.RequestException as e:
+    except Exception as e:
         return {"error": str(e)}
 
     soup = BeautifulSoup(response.text, "html.parser")
     buttons = soup.find_all("button", onclick=True)
-    text = button.get_text(strip=True).split(" ")[0]
     url_pattern = re.compile(r"triggerDownload\(this,\s*'([^']+)'")
     
     download_urls = []
     
     for button in buttons:
         onclick = button.get("onclick", "")
+        text = button.get_text(strip=True).split(" ")[0]
         match = url_pattern.search(onclick)
         if match:
             extracted_url = match.group(1)
