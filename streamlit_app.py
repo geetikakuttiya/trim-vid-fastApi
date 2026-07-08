@@ -28,6 +28,29 @@ st.set_page_config(page_title="Reel Splitter", page_icon="🎬", layout="centere
 WORK_ROOT = Path(tempfile.gettempdir()) / "reel_splitter_sessions"
 WORK_ROOT.mkdir(exist_ok=True)
 
+# How long an old session's temp files are allowed to sit around before an
+# app startup / rerun sweeps them away.
+STALE_AFTER_SECONDS = 2 * 60 * 60  # 2 hours
+
+
+def purge_stale_sessions(keep_dir: Path | None = None) -> None:
+    """Delete session folders that haven't been touched in a while.
+
+    Runs on every script execution (cheap: just a glob + stat), so leftover
+    temp files from crashed/abandoned sessions don't pile up forever on a
+    long-running server. The active session's folder is always kept.
+    """
+    now = time.time()
+    for folder in WORK_ROOT.glob("session_*"):
+        if keep_dir is not None and folder == keep_dir:
+            continue
+        try:
+            newest_mtime = max((p.stat().st_mtime for p in folder.rglob("*")), default=folder.stat().st_mtime)
+        except FileNotFoundError:
+            continue
+        if now - newest_mtime > STALE_AFTER_SECONDS:
+            shutil.rmtree(folder, ignore_errors=True)
+
 
 # ---------------------------------------------------------------------------
 # Session state
@@ -37,6 +60,8 @@ if "session_dir" not in st.session_state:
     session_dir = WORK_ROOT / f"session_{int(time.time() * 1000)}"
     session_dir.mkdir(parents=True, exist_ok=True)
     st.session_state.session_dir = session_dir
+
+purge_stale_sessions(keep_dir=st.session_state.session_dir)
 
 if "reels" not in st.session_state:
     st.session_state.reels = []  # list[Path]
@@ -53,6 +78,15 @@ def reset_outputs():
     st.session_state.reels = []
     session_dir = get_session_dir() / "parts"
     shutil.rmtree(session_dir, ignore_errors=True)
+
+
+def clear_my_files():
+    """Wipe everything this browser session has downloaded/generated so far."""
+    session_dir = get_session_dir()
+    shutil.rmtree(session_dir, ignore_errors=True)
+    session_dir.mkdir(parents=True, exist_ok=True)
+    st.session_state.reels = []
+    st.session_state.audio_file = None
 
 
 def save_cookie_upload(uploaded_file, dest_dir: Path) -> Path | None:
@@ -116,6 +150,18 @@ st.caption(
     "Split a long video into fixed-length parts and auto-convert each part into "
     "a labelled 9:16 reel, ready for Shorts/Reels/TikTok."
 )
+
+with st.sidebar:
+    st.subheader("Session")
+    st.caption(
+        "Your downloads and generated reels live in a temp folder on the server. "
+        "Files older than 2 hours are swept automatically; use this to clear "
+        "yours right now."
+    )
+    if st.button("🗑️ Clear my files", use_container_width=True):
+        clear_my_files()
+        st.success("Cleared.")
+        st.rerun()
 
 tab_youtube, tab_upload, tab_audio = st.tabs(
     ["🔗 From YouTube URL", "📁 Upload a video", "🎵 Audio only (YouTube)"]
