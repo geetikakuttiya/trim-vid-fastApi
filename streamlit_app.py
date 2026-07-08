@@ -112,6 +112,10 @@ def process_source_video(source_path: Path, segment_seconds: int, text_position:
     status.write("Splitting into segments...")
     raw_parts = vp.split_video(source_path, int(segment_seconds), parts_dir, progress_cb=report)
 
+    # the full source video isn't needed anymore once it's split into parts —
+    # drop it to save disk space on the host
+    source_path.unlink(missing_ok=True)
+
     reels = []
     for i, part in enumerate(raw_parts, start=1):
         reel_path = vp.convert_to_reel(part, i, parts_dir, text_position=text_position, progress_cb=report)
@@ -131,14 +135,16 @@ def render_reels():
                 st.markdown(f"**Part {i}**")
                 st.video(str(reel_path))
                 with open(reel_path, "rb") as f:
-                    st.download_button(
-                        label=f"⬇️ Download Part {i}",
-                        data=f.read(),
-                        file_name=f"part_{i}.mp4",
-                        mime="video/mp4",
-                        key=f"dl_{reel_path.name}_{i}",
-                        use_container_width=True,
-                    )
+                    data = f.read()
+                st.download_button(
+                    label=f"⬇️ Download Part {i}",
+                    data=data,
+                    file_name=f"part_{i}.mp4",
+                    mime="video/mp4",
+                    key=f"dl_reel_{i}",  # stable across reruns: index alone is
+                    # unique within a session's reel list, no timestamp/random
+                    use_container_width=True,
+                )
 
 
 # ---------------------------------------------------------------------------
@@ -212,8 +218,6 @@ with tab_youtube:
                 with st.expander("Details"):
                     st.code(traceback.format_exc())
 
-    render_reels()
-
 # --- Upload your own video --------------------------------------------------
 with tab_upload:
     st.write("Already have the video file? Upload it directly — no download needed.")
@@ -253,8 +257,6 @@ with tab_upload:
                 with st.expander("Details"):
                     st.code(traceback.format_exc())
 
-    render_reels()
-
 # --- Audio only -----------------------------------------------------------
 with tab_audio:
     st.write("Download only the audio track (mp3) from a YouTube URL.")
@@ -288,13 +290,20 @@ with tab_audio:
         audio_path = Path(st.session_state.audio_file)
         st.audio(str(audio_path))
         with open(audio_path, "rb") as f:
-            st.download_button(
-                label="⬇️ Download MP3",
-                data=f.read(),
-                file_name=audio_path.name.split("_", 1)[-1],
-                mime="audio/mpeg",
-                use_container_width=True,
-            )
+            audio_data = f.read()
+        st.download_button(
+            label="⬇️ Download MP3",
+            data=audio_data,
+            file_name=audio_path.name.split("_", 1)[-1],
+            mime="audio/mpeg",
+            key="dl_audio",
+            use_container_width=True,
+        )
+
+# Reels are rendered ONCE here (not inside each tab) — st.tabs renders every
+# tab's content into the DOM simultaneously, so calling this inside more than
+# one tab created duplicate widget keys.
+render_reels()
 
 st.divider()
 with st.expander("How the 9:16 conversion works"):

@@ -17,6 +17,7 @@ Pipeline:
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import uuid
@@ -28,9 +29,23 @@ from PIL import Image, ImageFilter
 
 # ---------------------------------------------------------------------------
 # Config
+#
+# All overridable via env vars so the same code can run comfortably on a
+# beefy machine or a resource-capped free-tier host (e.g. Render's free web
+# service: ~512MB RAM, a fraction of a shared vCPU). The defaults below are
+# tuned to be gentle on a small host: 720x1280 output instead of full 1080p,
+# the fastest x264 preset (more CPU-efficient, bigger file for the same
+# quality — a reasonable trade when CPU/RAM are the bottleneck, not
+# bandwidth), and a single encoder thread so ffmpeg doesn't try to burst
+# across cores it doesn't actually have, which is what tends to trigger a
+# free-tier host's OOM/CPU killer.
 # ---------------------------------------------------------------------------
 
-CANVAS_W, CANVAS_H = 1080, 1920  # target 9:16 output size
+CANVAS_W = int(os.environ.get("REEL_CANVAS_W", "720"))
+CANVAS_H = int(os.environ.get("REEL_CANVAS_H", "1280"))
+FFMPEG_PRESET = os.environ.get("REEL_FFMPEG_PRESET", "ultrafast")
+FFMPEG_THREADS = os.environ.get("REEL_FFMPEG_THREADS", "1")
+FFMPEG_CRF = os.environ.get("REEL_FFMPEG_CRF", "26")
 FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
 ProgressCB = Optional[Callable[[str], None]]
@@ -260,8 +275,9 @@ def split_video(path: Path, segment_seconds: int, out_dir: Path, progress_cb: Pr
             "-ss", str(start),
             "-i", str(path),
             "-t", str(duration),
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
-            "-c:a", "aac", "-b:a", "160k",
+            "-c:v", "libx264", "-preset", FFMPEG_PRESET, "-crf", FFMPEG_CRF,
+            "-threads", FFMPEG_THREADS,
+            "-c:a", "aac", "-b:a", "128k",
             "-avoid_negative_ts", "1",
             str(part_path),
         ]
@@ -352,7 +368,8 @@ def convert_to_reel(
             "ffmpeg", "-y",
             "-i", str(part_path),
             "-vf", vf,
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-c:v", "libx264", "-preset", FFMPEG_PRESET, "-crf", FFMPEG_CRF,
+            "-threads", FFMPEG_THREADS,
             "-c:a", "aac", "-b:a", "128k",
             str(out_path),
         ]
@@ -378,13 +395,18 @@ def convert_to_reel(
             "-i", str(part_path),
             "-filter_complex", filter_complex,
             "-map", "[outv]", "-map", "1:a?",
-            "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
+            "-c:v", "libx264", "-preset", FFMPEG_PRESET, "-crf", FFMPEG_CRF,
+            "-threads", FFMPEG_THREADS,
             "-c:a", "aac", "-b:a", "128k",
             "-shortest",
             str(out_path),
         ]
         run_cmd(cmd)
         bg_path.unlink(missing_ok=True)
+
+    # the raw (pre-reel) chunk is no longer needed once the labelled reel
+    # exists — dropping it keeps disk/memory pressure down on small hosts
+    part_path.unlink(missing_ok=True)
 
     return out_path
 
