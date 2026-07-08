@@ -4,4 +4,5 @@
 sudo apt-get update && sudo apt-get install -y ffmpeg
 
 # Start FastAPI using uvicorn
-uv run uvicorn main:app --host 0.0.0.0 --port 10000
+# uv run uvicorn main:app --host 0.0.0.0 --port 10000
+uv run streamlit run streamlit_app.py
